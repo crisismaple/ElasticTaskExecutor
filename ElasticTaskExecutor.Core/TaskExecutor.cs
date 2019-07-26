@@ -30,6 +30,8 @@
         internal Func<long> GetMinExecutorCount { get; set; }
         internal Func<bool> GlobalApproveNewExecutorCreationCriteria { get; set; }
 
+        internal Func<bool> IsExecutorEnabled { get; set; }
+
         public async Task RunTaskAsync()
         {
             var notDec = true;
@@ -107,9 +109,7 @@
             }
             Logger.LogInfo($"Execution safe exited");
         }
-
-        public abstract bool IsExecutorEnabled();
-
+        
         protected virtual void Dispose(bool disposing)
         {
             if (disposing)
