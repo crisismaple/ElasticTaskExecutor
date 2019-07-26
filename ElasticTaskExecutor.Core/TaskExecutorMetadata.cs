@@ -72,6 +72,7 @@
 
         private void LinkNewExecutor(TaskExecutor executor)
         {
+            executor.IsExecutorEnabled = () => IsEnabled;
             executor.GetExecutionTimeout = GetExecutionTimeout;
             executor.CreateNewTaskExecutor = CreateNewTaskExecutor;
             executor.DecrementExecutorCounter = DecrementExecutorCounter;

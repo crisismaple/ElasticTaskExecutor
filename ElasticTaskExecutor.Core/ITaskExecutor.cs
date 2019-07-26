@@ -6,7 +6,5 @@
     public interface ITaskExecutor : IDisposable
     {
         Task RunTaskAsync();
-
-        bool IsExecutorEnabled();
     }
 }
