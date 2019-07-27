@@ -7,9 +7,4 @@
   <ItemGroup>
     <Folder Include="Utils\" />
   </ItemGroup>
-
-
-  <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="12.0.2" />
-  </ItemGroup>
 </Project>
