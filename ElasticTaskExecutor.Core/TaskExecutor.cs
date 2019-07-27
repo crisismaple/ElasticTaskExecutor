@@ -7,13 +7,12 @@
 
     public abstract class TaskExecutor :ITaskExecutor
     {
-        protected TaskExecutor(CancellationTokenSource taskManagerCancellationToken, ILogger logger)
+        protected TaskExecutor(ILogger logger)
         {
             Logger = logger;
-            TaskManagerCancellationToken = taskManagerCancellationToken;
         }
 
-        private CancellationTokenSource TaskManagerCancellationToken { get; }
+        internal CancellationTokenSource TaskManagerCancellationToken { get; set; }
 
         protected readonly ILogger Logger;
 

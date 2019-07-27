@@ -11,12 +11,11 @@
         {
             Logger = logger;
             _daemonExecutorConstructor = daemonExecutorConstructor;
+            IsEnabled = true;
+            TaskExecutorName = nameof(DaemonExecutor);
         }
 
-
-        public override bool IsEnabled => true;
         public override int TaskExecutorTypeId => Constraint.DaemonExecutorId;
-        public override string TaskExecutorName => nameof(DaemonExecutor);
         protected override ILogger Logger { get; }
 
         public override long GetMinExecutorCount()

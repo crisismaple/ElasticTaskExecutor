@@ -14,11 +14,10 @@
         private readonly Func<bool> _printMonitorInfoFunc;
 
         public DaemonExecutor(ILogger logger,
-            CancellationTokenSource taskManagerCancellationToken,
             ConcurrentDictionary<int, TaskExecutorMetadata> executorRegistry,
             Func<TimeSpan> executionMonitoringIntervalFunc,
             Func<bool> printMonitorInfoFunc) :
-            base(taskManagerCancellationToken, logger)
+            base(logger)
         {
             _executorRegistry = executorRegistry;
             _executionMonitoringIntervalFunc = executionMonitoringIntervalFunc;
@@ -77,11 +76,6 @@
         protected override bool ShouldTryTerminateCurrentExecutor()
         {
             return false;
-        }
-
-        public override bool IsExecutorEnabled()
-        {
-            return true;
         }
     }
 }

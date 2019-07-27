@@ -8,10 +8,10 @@
     public abstract class TaskExecutorMetadata
     {
         private long _runningExecutorCounter = 0;
-        public abstract bool IsEnabled { get; }
+        public bool IsEnabled { get; set; }
         public abstract int TaskExecutorTypeId { get; }
 
-        public abstract string TaskExecutorName { get; }
+        public string TaskExecutorName { get; set; }
 
         protected abstract ILogger Logger { get; }
 
@@ -35,6 +35,9 @@
         {
             return Interlocked.Decrement(ref _runningExecutorCounter);
         }
+
+        internal CancellationTokenSource TaskManagerCancellationToken { get; set; }
+
 
         internal async Task CreateNewTaskExecutor()
         {
@@ -72,6 +75,7 @@
 
         private void LinkNewExecutor(TaskExecutor executor)
         {
+            executor.TaskManagerCancellationToken = TaskManagerCancellationToken;
             executor.IsExecutorEnabled = () => IsEnabled;
             executor.GetExecutionTimeout = GetExecutionTimeout;
             executor.CreateNewTaskExecutor = CreateNewTaskExecutor;
