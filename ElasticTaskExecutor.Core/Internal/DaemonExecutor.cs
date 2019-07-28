@@ -1,7 +1,7 @@
 ﻿namespace ElasticTaskExecutor.Core.Internal
 {
     using System;
-    using System.Collections.Concurrent;
+    using System.Collections.Generic;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
@@ -9,12 +9,12 @@
 
     internal sealed class DaemonExecutor : TaskExecutor
     {
-        private readonly ConcurrentDictionary<int, TaskExecutorMetadata> _executorRegistry;
+        private readonly Dictionary<int, TaskExecutorMetadata> _executorRegistry;
         private readonly Func<TimeSpan> _executionMonitoringIntervalFunc;
         private readonly Func<bool> _printMonitorInfoFunc;
 
         public DaemonExecutor(ILogger logger,
-            ConcurrentDictionary<int, TaskExecutorMetadata> executorRegistry,
+            Dictionary<int, TaskExecutorMetadata> executorRegistry,
             Func<TimeSpan> executionMonitoringIntervalFunc,
             Func<bool> printMonitorInfoFunc) :
             base(logger)
@@ -26,28 +26,32 @@
 
         protected override async Task Execution(CancellationTokenSource cts)
         {
-            var currentlyEnabledTaskExecutors = _executorRegistry.Where(kv => kv.Key!= Constraint.DaemonExecutorId && kv.Value.IsEnabled).Select(kv => kv.Value).ToList();
+            var currentlyAttachedTaskExecutors = _executorRegistry.Where(kv => kv.Key!= Constraint.DaemonExecutorId).Select(kv => kv.Value).ToList();
             var printMonitorInfo = _printMonitorInfoFunc();
             if (printMonitorInfo)
             {
                 Logger?.LogInfo(
-                    $"Currently {currentlyEnabledTaskExecutors.Count} type executors are enabled: {string.Join("; ", currentlyEnabledTaskExecutors.Select(x => x.GetTaskExecutorIndex()))}");
+                    $"Currently {currentlyAttachedTaskExecutors.Count} type executors are attached.");
+                foreach (var currentlyAttachedTaskExecutor in currentlyAttachedTaskExecutors)
+                {
+                    Logger?.LogInfo(
+                        $"{currentlyAttachedTaskExecutor.GetTaskExecutorIndex()} -> {(currentlyAttachedTaskExecutor.IsEnabled ? "Enabled" : "Disabled")}");
+                }
             }
 
-            currentlyEnabledTaskExecutors.ForEach(t =>
+            currentlyAttachedTaskExecutors.ForEach(t =>
             {
                 var counter = t.GetExecutorCounter();
-                if (!cts.IsCancellationRequested && counter == 0)
+                if (printMonitorInfo)
+                {
+                    Logger?.LogInfo($"There are {counter} executors running for {t.GetTaskExecutorIndex()}({(t.IsEnabled ? "Enabled" : "Disabled")})");
+                }
+                if (!cts.IsCancellationRequested && t.IsEnabled && counter == 0)
                 {
                     var minExecutorCnt = (int)t.GetMinExecutorCount();
                     Logger?.LogInfo($"Start to create {minExecutorCnt} executors for {t.GetTaskExecutorIndex()}");
                     Parallel.ForEach(Enumerable.Range(0, minExecutorCnt),
                         i => { Task.Factory.StartNew(async () => await t.CreateNewTaskExecutor().ConfigureAwait(false)); });
-                }
-
-                if (printMonitorInfo)
-                {
-                    Logger?.LogInfo($"There are {counter} executors running for {t.GetTaskExecutorIndex()}");
                 }
             });
 

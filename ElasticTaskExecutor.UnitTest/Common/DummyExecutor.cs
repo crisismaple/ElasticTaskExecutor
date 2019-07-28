@@ -21,7 +21,7 @@
                 Logger.LogInfo($"Existing {nameof(Execution)}, cancellation source status {cts.IsCancellationRequested}");
                 return;
             }
-            var sleepInterval = _seed.Next(100);
+            var sleepInterval = _seed.Next(1000, 2000);
             Logger.LogInfo($"Sleeping {sleepInterval}ms in {nameof(Execution)}");
             await Task.Delay(sleepInterval).ConfigureAwait(false);
             Logger.LogInfo($"Exiting {nameof(Execution)}, cancellation source status {cts.IsCancellationRequested}");

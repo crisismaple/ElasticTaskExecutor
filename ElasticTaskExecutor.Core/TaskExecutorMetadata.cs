@@ -8,7 +8,7 @@
     public abstract class TaskExecutorMetadata
     {
         private long _runningExecutorCounter = 0;
-        public bool IsEnabled { get; set; }
+        public volatile bool IsEnabled;
         public abstract int TaskExecutorTypeId { get; }
 
         public string TaskExecutorName { get; set; }
@@ -21,7 +21,7 @@
 
         public abstract TimeSpan? GetExecutionTimeout();
 
-        internal long GetExecutorCounter()
+        public long GetExecutorCounter()
         {
             return Interlocked.Read(ref _runningExecutorCounter);
         }
@@ -36,8 +36,7 @@
             return Interlocked.Decrement(ref _runningExecutorCounter);
         }
 
-        internal CancellationTokenSource TaskManagerCancellationToken { get; set; }
-
+        internal volatile CancellationTokenSource TaskManagerCancellationToken;
 
         internal async Task CreateNewTaskExecutor()
         {
@@ -64,7 +63,7 @@
             }
         }
 
-        internal Func<bool> GlobalApproveNewExecutorCreationCriteriaInContext { get; set; }
+        internal volatile Func<bool> GlobalApproveNewExecutorCreationCriteriaInContext;
 
         internal string GetTaskExecutorIndex()
         {

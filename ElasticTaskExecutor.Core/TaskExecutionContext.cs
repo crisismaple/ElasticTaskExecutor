@@ -1,20 +1,24 @@
 ﻿namespace ElasticTaskExecutor.Core
 {
     using System;
-    using System.Collections.Concurrent;
+    using System.Collections.Generic;
     using System.Linq;
+    using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
     using Common;
     using Internal;
-    using Newtonsoft.Json;
 
-    public class TaskExecutionContext : IDisposable
+    public sealed class TaskExecutionContext : IDisposable
     {
+        private volatile bool _isFinalizing = false;
+
+        private readonly SemaphoreSlim _operationSemaphoreSlim = new SemaphoreSlim(1,1);
+
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
 
-        private readonly ConcurrentDictionary<int, TaskExecutorMetadata> _executorRegistry =
-            new ConcurrentDictionary<int, TaskExecutorMetadata>();
+        private readonly Dictionary<int, TaskExecutorMetadata> _executorRegistry =
+            new Dictionary<int, TaskExecutorMetadata>();
 
         private readonly ILogger _logger;
         public TimeSpan ExecutionMonitoringInterval;
@@ -36,74 +40,104 @@
                         () => executionMonitoringInterval,
                         () => printMonitorInfo);
                 });
-            TryRegisterNewExecutorInternal(daemonExecutorMetadata);
+            TryRegisterNewExecutorInternalAsync(daemonExecutorMetadata, CancellationToken.None).Wait();
 #pragma warning disable 4014
             daemonExecutorMetadata.CreateNewTaskExecutor();
 #pragma warning restore 4014
         }
 
-        public bool TryRegisterNewExecutor(TaskExecutorMetadata metadata)
+        public async Task<bool> TryRegisterNewExecutorAsync(TaskExecutorMetadata metadata, CancellationToken cancellation)
         {
             if (metadata.TaskExecutorTypeId == Constraint.DaemonExecutorId)
             {
                 return false;
             }
 
-            return TryRegisterNewExecutorInternal(metadata);
+            return await TryRegisterNewExecutorInternalAsync(metadata, cancellation).ConfigureAwait(false);
         }
 
-        public bool TryRegisterNewExecutorInternal(TaskExecutorMetadata metadata)
+        private async Task<bool> TryRegisterNewExecutorInternalAsync(TaskExecutorMetadata metadata, CancellationToken cancellation)
         {
-            HandleMetadataRegistration(metadata);
-            return _executorRegistry.TryAdd(metadata.TaskExecutorTypeId, metadata);
+            try
+            {
+                await _operationSemaphoreSlim.WaitAsync(cancellation).ConfigureAwait(false);
+
+            }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
+            try
+            {
+                if (!_isFinalizing)
+                {
+                    var key = metadata.TaskExecutorTypeId;
+                    if (_executorRegistry.ContainsKey(key))
+                    {
+                        return false;
+                    }
+                    HandleMetadataRegistration(metadata);
+                    _executorRegistry.Add(key, metadata);
+                    return true;
+                }
+                return false;
+            }
+            finally
+            {
+                _operationSemaphoreSlim.Release();
+
+            }
         }
 
-        public async Task<bool> TryUnRegisterExecutorAsync(int taskExecutorTypeId)
+        public async Task<bool> TryUnRegisterExecutorAsync(int taskExecutorTypeId, CancellationToken token)
         {
             if (taskExecutorTypeId == Constraint.DaemonExecutorId)
             {
                 return false;
             }
 
-            if (_executorRegistry.TryRemove(taskExecutorTypeId, out var metadataInstance))
+            try
             {
-                if (metadataInstance == null)
+                await _operationSemaphoreSlim.WaitAsync(token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
+
+            try
+            {
+                if (_isFinalizing)
                 {
-                    return true;
+                    return false;
                 }
-
-                while (true)
+                TaskExecutorMetadata metadataInstance = null;
+                if (_executorRegistry.TryGetValue(taskExecutorTypeId, out metadataInstance))
                 {
-                    var currentRunningTaskCnt = metadataInstance.GetExecutorCounter();
-                    if (currentRunningTaskCnt <= 0)
-                    {
-                        if (PrintMonitorInfo)
-                        {
-                            _logger?.LogInfo(
-                                $"All {metadataInstance.GetTaskExecutorIndex()} executor instance exited gracefully.");
-                        }
-
-                        break;
-                    }
-
-                    if (PrintMonitorInfo)
-                    {
-                        _logger?.LogInfo(
-                            $"Waiting safe exit. {currentRunningTaskCnt} {metadataInstance.GetTaskExecutorIndex()} executor instances running");
-                    }
-
-                    await Task.Delay(ExitMonitoringInterval).ConfigureAwait(false);
+                    _executorRegistry.Remove(taskExecutorTypeId);
+                    HandleMetadataUnRegistration(metadataInstance);
                 }
-
-                HandleMetadataUnRegistration(metadataInstance);
                 return true;
             }
-            return false;
+            finally
+            {
+                _operationSemaphoreSlim.Release();
+            }
         }
 
         public async Task FinalizeAsync()
         {
             _cts.Cancel();
+            await _operationSemaphoreSlim.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                _isFinalizing = true;
+            }
+            finally
+            {
+                _operationSemaphoreSlim.Release();
+            }
+
             while (true)
             {
                 var currentRunningStatus = _executorRegistry.ToDictionary(kv => kv.Key,
@@ -121,7 +155,14 @@
                 if (PrintMonitorInfo)
                 {
                     _logger?.LogInfo(
-                        $"Waiting safe exit. Pending executor info: {currentRunningTaskCnt} task is running: {JsonConvert.SerializeObject(currentRunningStatus)}");
+                        $"Waiting safe exit. Pending executor info: {currentRunningTaskCnt} task is running.");
+                    foreach (var kv in currentRunningStatus)
+                    {
+                        if (kv.Value.Item2 > 0)
+                        {
+                            _logger?.LogInfo($"{kv.Key}: ({kv.Value.TaskExecutorName}) -> {kv.Value.Item2} running;");
+                        }
+                    }
                 }
 
                 await Task.Delay(ExitMonitoringInterval).ConfigureAwait(false);
@@ -129,19 +170,17 @@
 
             foreach (var taskExecutorMetadata in _executorRegistry)
             {
-                taskExecutorMetadata.Value.TaskManagerCancellationToken = null;
-                taskExecutorMetadata.Value.GlobalApproveNewExecutorCreationCriteriaInContext = null;
+                HandleMetadataUnRegistration(taskExecutorMetadata.Value);
             }
-
         }
 
         private void HandleMetadataRegistration(TaskExecutorMetadata metadata)
         {
-            
             if (metadata.TaskManagerCancellationToken != null)
             {
-                throw new Exception("Metadata was bind to a execution context");
+                throw new Exception("Metadata was already bind to a execution context");
             }
+
             metadata.TaskManagerCancellationToken = _cts;
             metadata.GlobalApproveNewExecutorCreationCriteriaInContext = GlobalApproveNewExecutorCreationCriteria;
         }
@@ -159,6 +198,7 @@
         
         public void Dispose()
         {
+            _operationSemaphoreSlim?.Dispose();
             _cts?.Dispose();
         }
     }

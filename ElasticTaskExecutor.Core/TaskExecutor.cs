@@ -5,7 +5,7 @@
     using System.Threading.Tasks;
     using Common;
 
-    public abstract class TaskExecutor :ITaskExecutor
+    public abstract class TaskExecutor : IDisposable
     {
         protected TaskExecutor(ILogger logger)
         {
@@ -28,7 +28,6 @@
         internal Func<Task> CreateNewTaskExecutor { get; set; }
         internal Func<long> GetMinExecutorCount { get; set; }
         internal Func<bool> GlobalApproveNewExecutorCreationCriteria { get; set; }
-
         internal Func<bool> IsExecutorEnabled { get; set; }
 
         public async Task RunTaskAsync()
@@ -40,22 +39,30 @@
                 {
                     break;
                 }
+
                 if (!IsExecutorEnabled())
                 {
                     break;
                 }
+
+                var cts = TaskManagerCancellationToken;
+                CancellationTokenSource localCts = null;
                 var timeout = GetExecutionTimeout();
-               var localCts = timeout.HasValue? new CancellationTokenSource(timeout.Value): new CancellationTokenSource(-1);
-                var cts = CancellationTokenSource.CreateLinkedTokenSource(
-                    TaskManagerCancellationToken.Token,
-                    localCts.Token);
+                if (timeout.HasValue)
+                {
+                    localCts = new CancellationTokenSource(timeout.Value);
+                    cts = CancellationTokenSource.CreateLinkedTokenSource(
+                        TaskManagerCancellationToken.Token,
+                        localCts.Token);
+                }
+                
                 try
                 {
                     await Execution(cts).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {
-                    if (localCts.IsCancellationRequested)
+                    if (localCts?.IsCancellationRequested ?? false)
                     {
                         Logger.LogWarning(
                             $"Execution been cancelled due to exceed timeout {timeout?.TotalSeconds ?? -1} seconds");
@@ -75,14 +82,17 @@
                 {
                     Logger.LogWarning($"Meet exceptions in {nameof(RunTaskAsync)}: {e}");
                 }
+
                 if (TaskManagerCancellationToken.IsCancellationRequested)
                 {
                     break;
                 }
+
                 if (!IsExecutorEnabled())
                 {
                     break;
                 }
+
                 if (GlobalApproveNewExecutorCreationCriteria() && ShouldTryToCreateNewExecutor())
                 {
 #pragma warning disable 4014
@@ -102,13 +112,15 @@
                 // add back counter because we will not exist
                 IncrementExecutorCounter();
             }
+
             if (notDec)
             {
                 DecrementExecutorCounter();
             }
-            Logger.LogInfo($"Execution safe exited");
+
+            Logger.LogInfo($"Execution safely exited");
         }
-        
+
         protected virtual void Dispose(bool disposing)
         {
             if (disposing)
