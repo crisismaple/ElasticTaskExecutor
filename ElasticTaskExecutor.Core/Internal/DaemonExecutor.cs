@@ -49,9 +49,22 @@
                 if (!cts.IsCancellationRequested && t.IsEnabled && counter == 0)
                 {
                     var minExecutorCnt = (int)t.GetMinExecutorCount();
-                    Logger?.LogInfo($"Start to create {minExecutorCnt} executors for {t.GetTaskExecutorIndex()}");
-                    Parallel.ForEach(Enumerable.Range(0, minExecutorCnt),
-                        i => { Task.Factory.StartNew(async () => await t.CreateNewTaskExecutor().ConfigureAwait(false)); });
+                    if (minExecutorCnt == 0 && t.ShouldBeReactivate())
+                    {
+                        //At least create 1 instance for suspended executors
+                        minExecutorCnt += 1;
+                    }
+
+                    if (minExecutorCnt > 0)
+                    {
+                        Logger?.LogInfo($"Start to create {minExecutorCnt} executors for {t.GetTaskExecutorIndex()}");
+                        Parallel.ForEach(Enumerable.Range(0, minExecutorCnt),
+                            i => { Task.Factory.StartNew(async () => await t.CreateNewTaskExecutor().ConfigureAwait(false)); });
+                    }
+                    else
+                    {
+                        Logger?.LogInfo($"Skip to create executors for suspended executor {t.GetTaskExecutorIndex()}");
+                    }
                 }
             });
 

@@ -15,6 +15,16 @@
 
         protected abstract ILogger Logger { get; }
 
+        /// <summary>
+        /// Only be evaluated when context trying to activate a suspended executor
+        /// </summary>
+        public virtual bool ShouldBeReactivate() => true;
+
+        /// <summary>
+        /// Running executor count will be greater or equals to this count
+        /// 0 means the executor could be suspended and would be re-activated by context
+        /// </summary>
+        /// <returns>Minimum executor instance count</returns>
         public abstract long GetMinExecutorCount();
 
         public abstract long GetMaxExecutorCount();
