@@ -16,7 +16,14 @@ namespace ElasticTaskExecutor.UnitTest
             var logger = new DummyLogger();
             var monitorTimespan = TimeSpan.FromSeconds(10);
             var exitTimespan = TimeSpan.FromSeconds(5);
-            var dummyMetadata = new DummyExecutorMetadata(logger, 0, nameof(DummyExecutor));
+            var dummyMetadata = new DummyPullerMetadata(logger, 0, nameof(DummyPuller));
+
+
+            var subscription = TaskSubscriberMetadata<long>.CreateNewSubscription(logger,
+                2,
+                10,
+                () => new DummySubscriber<long>(logger));
+
 
             using (var context = new TaskExecutionContext(logger, monitorTimespan, exitTimespan, true))
             {
@@ -46,8 +53,8 @@ namespace ElasticTaskExecutor.UnitTest
             var logger = new DummyLogger();
             var monitorTimespan = TimeSpan.FromSeconds(1);
             var exitTimespan = TimeSpan.FromSeconds(5);
-            var dummyMetadata1 = new DummyExecutorMetadata(logger, 0, nameof(DummyExecutor) + "0");
-            var dummyMetadata2 = new DummyExecutorMetadata(logger, 1, nameof(DummyExecutor) + "1");
+            var dummyMetadata1 = new DummyPullerMetadata(logger, 0, nameof(DummyPuller) + "0");
+            var dummyMetadata2 = new DummyPullerMetadata(logger, 1, nameof(DummyPuller) + "1");
 
             using (var context = new TaskExecutionContext(logger, monitorTimespan, exitTimespan, true))
             {

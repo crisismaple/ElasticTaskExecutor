@@ -1,21 +1,23 @@
 ﻿namespace ElasticTaskExecutor.UnitTest.Common
 {
-    using System;
     using Core;
     using Core.Common;
 
-    public class DummyExecutorMetadata : TaskExecutorMetadata
+    public class DummyPullerMetadata : TaskPullerMetadata
     {
-        public DummyExecutorMetadata(ILogger logger,
+        public DummyPullerMetadata(ILogger logger,
             int taskExecutorTypeId,
             string taskExecutorName)
         {
             TaskExecutorName = taskExecutorName;
-            IsEnabled = true;
             TaskExecutorTypeId = taskExecutorTypeId;
             Logger = logger;
         }
         
+        public bool IsEnabled { private get; set; }
+
+        public override bool IsExecutorEnabled => IsEnabled;
+
         public override int TaskExecutorTypeId { get; }
         protected override ILogger Logger { get; }
         public override long GetMinExecutorCount()
@@ -28,14 +30,9 @@
             return 3;
         }
 
-        public override TimeSpan? GetExecutionTimeout()
+        protected override TaskPuller ExecutorActivator()
         {
-            return null;
-        }
-
-        protected override TaskExecutor ExecutorActivator()
-        {
-            return new DummyExecutor(Logger);
+            return new DummyPuller(Logger);
         }
     }
 }
