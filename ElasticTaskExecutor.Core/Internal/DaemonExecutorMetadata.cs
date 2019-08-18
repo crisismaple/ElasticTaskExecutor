@@ -3,7 +3,7 @@
     using System;
     using Common;
 
-    internal class DaemonExecutorMetadata : TaskExecutorMetadata
+    internal class DaemonExecutorMetadata : TaskPullerMetadata
     {
         private readonly Func<DaemonExecutor> _daemonExecutorConstructor;
 
@@ -11,7 +11,6 @@
         {
             Logger = logger;
             _daemonExecutorConstructor = daemonExecutorConstructor;
-            IsEnabled = true;
             TaskExecutorName = nameof(DaemonExecutor);
         }
 
@@ -27,13 +26,8 @@
         {
             return 1;
         }
-
-        public override TimeSpan? GetExecutionTimeout()
-        {
-            return null;
-        }
-
-        protected override TaskExecutor ExecutorActivator()
+        
+        protected override TaskPuller ExecutorActivator()
         {
             return _daemonExecutorConstructor();
         }

@@ -2,16 +2,15 @@
 {
     using System;
     using System.Collections.Concurrent;
-    using System.Collections.Generic;
     using Core.Common;
 
     public class DummyLogger :ILogger
     {
         private ConcurrentBag<string> _infoMessages = new ConcurrentBag<string>();
-        private ConcurrentBag<string> _warnMessages = new ConcurrentBag<string>();
-        private ConcurrentBag<string> _errorMessages = new ConcurrentBag<string>();
-        private ConcurrentBag<string> _fatalMessages = new ConcurrentBag<string>();
-        private ConcurrentBag<string> _debugMessages = new ConcurrentBag<string>();
+        private readonly ConcurrentBag<string> _warnMessages = new ConcurrentBag<string>();
+        private readonly ConcurrentBag<string> _errorMessages = new ConcurrentBag<string>();
+        private readonly ConcurrentBag<string> _fatalMessages = new ConcurrentBag<string>();
+        private readonly ConcurrentBag<string> _debugMessages = new ConcurrentBag<string>();
 
 
         public void LogInfo(string info)

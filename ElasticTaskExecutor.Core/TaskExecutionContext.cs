@@ -3,7 +3,6 @@
     using System;
     using System.Collections.Generic;
     using System.Linq;
-    using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
     using Common;
@@ -13,12 +12,12 @@
     {
         private volatile bool _isFinalizing = false;
 
-        private readonly SemaphoreSlim _operationSemaphoreSlim = new SemaphoreSlim(1,1);
+        private readonly SemaphoreSlim _operationSemaphoreSlim = new SemaphoreSlim(1, 1);
 
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
 
-        private readonly Dictionary<int, TaskExecutorMetadata> _executorRegistry =
-            new Dictionary<int, TaskExecutorMetadata>();
+        private readonly Dictionary<int, TaskPullerMetadata> _executorRegistry =
+            new Dictionary<int, TaskPullerMetadata>();
 
         private readonly ILogger _logger;
         public TimeSpan ExecutionMonitoringInterval;
@@ -36,7 +35,7 @@
                 {
                     return new DaemonExecutor(
                         logger,
-                        _executorRegistry, 
+                        _executorRegistry,
                         () => executionMonitoringInterval,
                         () => printMonitorInfo);
                 });
@@ -46,7 +45,7 @@
 #pragma warning restore 4014
         }
 
-        public async Task<bool> TryRegisterNewExecutorAsync(TaskExecutorMetadata metadata, CancellationToken cancellation)
+        public async Task<bool> TryRegisterNewExecutorAsync(TaskPullerMetadata metadata, CancellationToken cancellation)
         {
             if (metadata.TaskExecutorTypeId == Constraint.DaemonExecutorId)
             {
@@ -56,7 +55,7 @@
             return await TryRegisterNewExecutorInternalAsync(metadata, cancellation).ConfigureAwait(false);
         }
 
-        private async Task<bool> TryRegisterNewExecutorInternalAsync(TaskExecutorMetadata metadata, CancellationToken cancellation)
+        private async Task<bool> TryRegisterNewExecutorInternalAsync(TaskPullerMetadata metadata, CancellationToken cancellation)
         {
             try
             {
@@ -111,8 +110,8 @@
                 {
                     return false;
                 }
-                TaskExecutorMetadata metadataInstance = null;
-                if (_executorRegistry.TryGetValue(taskExecutorTypeId, out metadataInstance))
+
+                if (_executorRegistry.TryGetValue(taskExecutorTypeId, out var metadataInstance))
                 {
                     _executorRegistry.Remove(taskExecutorTypeId);
                     HandleMetadataUnRegistration(metadataInstance);
@@ -141,13 +140,13 @@
             while (true)
             {
                 var currentRunningStatus = _executorRegistry.ToDictionary(kv => kv.Key,
-                    kv => (kv.Value.TaskExecutorName, kv.Value.GetExecutorCounter()));
+                    kv => (TaskExecutorName: kv.Value.TaskExecutorName, kv.Value.GetExecutorCounter()));
                 var currentRunningTaskCnt = currentRunningStatus.Values.Select(m => m.Item2).Sum();
                 if (currentRunningTaskCnt <= 0)
                 {
                     if (PrintMonitorInfo)
                     {
-                        _logger?.LogInfo("All executors exited gracefully.");
+                        _logger?.LogInfo("All executors exited gracefully");
                     }
                     break;
                 }
@@ -174,18 +173,18 @@
             }
         }
 
-        private void HandleMetadataRegistration(TaskExecutorMetadata metadata)
+        private void HandleMetadataRegistration(TaskPullerMetadata metadata)
         {
             if (metadata.TaskManagerCancellationToken != null)
             {
-                throw new Exception("Metadata was already bind to a execution context");
+                throw new Exception("Metadata was already bind to an execution context");
             }
 
             metadata.TaskManagerCancellationToken = _cts;
             metadata.GlobalApproveNewExecutorCreationCriteriaInContext = GlobalApproveNewExecutorCreationCriteria;
         }
 
-        private void HandleMetadataUnRegistration(TaskExecutorMetadata metadata)
+        private void HandleMetadataUnRegistration(TaskPullerMetadata metadata)
         {
             if (metadata != null)
             {
@@ -195,7 +194,7 @@
         }
 
         public Func<bool> GlobalApproveNewExecutorCreationCriteria = () => true;
-        
+
         public void Dispose()
         {
             _operationSemaphoreSlim?.Dispose();
