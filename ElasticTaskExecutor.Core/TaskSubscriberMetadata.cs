@@ -111,12 +111,11 @@
 
         private void LinkNewExecutor(TaskSubscriber<T> subscriber)
         {
+            subscriber.LinkedMetadata = this;
             var cts = new CancellationTokenSource();
             InstanceCancelEvent.WaitAsync().ContinueWith(t => cts.Cancel(), CancellationToken.None);
             subscriber.TaskManagerCancellationToken =
                 CancellationTokenSource.CreateLinkedTokenSource(TaskManagerCancellationToken.Token, cts.Token);
-            subscriber.TaskQueueReader = LocalCache.Reader;
-            subscriber.GetExecutionTimeout = () => ExecutionTimeout;
         }
 
         private void StartSubscribersInternal(int count)

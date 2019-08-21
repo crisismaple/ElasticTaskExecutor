@@ -12,25 +12,23 @@
         {
         }
 
-        internal Func<Task> CreateNewTaskExecutor { get; set; }
-
-        internal Func<bool> GlobalApproveNewExecutorCreationCriteria { get; set; }
-
-        internal Func<bool> IsExecutorEnabled { get; set; }
-
-
+        internal TaskPullerMetadata LinkedMetadata { get; set; }
+        
         protected abstract bool ShouldTryToCreateNewPuller();
 
         protected abstract bool ShouldTryTerminateCurrentPuller();
-
-        internal Func<Task<bool>> TryPerformLogoutAsync { get; set; }
-        internal Func<Task> ForceLogoutAsync { get; set; }
-
+        
         protected abstract Task Execution(CancellationTokenSource cts);
+
+        private CancellationTokenSource TaskManagerCancellationToken =>
+            LinkedMetadata.TaskManagerCancellationToken;
+
+        private TimeSpan? ExecutionTimeout => LinkedMetadata.ExecutionTimeout;
 
         internal async Task PullTaskAsync()
         {
             var alreadyLogout = false;
+            TaskPullerStarted?.Invoke(this, EventArgs.Empty);
             while (true)
             {
                 if (TaskManagerCancellationToken.IsCancellationRequested)
@@ -38,14 +36,14 @@
                     break;
                 }
 
-                if (!IsExecutorEnabled())
+                if (!LinkedMetadata.IsExecutorEnabled)
                 {
                     break;
                 }
 
                 var cts = TaskManagerCancellationToken;
                 CancellationTokenSource localCts = null;
-                var timeout = GetExecutionTimeout();
+                var timeout = ExecutionTimeout;
                 if (timeout.HasValue)
                 {
                     localCts = new CancellationTokenSource(timeout.Value);
@@ -56,7 +54,9 @@
 
                 try
                 {
+                    ExecutionStarting?.Invoke(this, EventArgs.Empty);
                     await Execution(cts).ConfigureAwait(false);
+                    ExecutionFinished?.Invoke(this, EventArgs.Empty);
                 }
                 catch (OperationCanceledException)
                 {
@@ -64,6 +64,7 @@
                     {
                         ExecutorLogger.LogWarning(
                             $"Execution been cancelled due to exceed timeout {timeout?.TotalSeconds} seconds");
+                        ExecutionTimeoutEvent?.Invoke(this, EventArgs.Empty);
                     }
                     else
                     {
@@ -79,6 +80,7 @@
                 catch (Exception e)
                 {
                     ExecutorLogger.LogWarning($"Meet exceptions in {nameof(PullTaskAsync)}: {e}");
+                    ExecutionExceptionHandler?.Invoke(this, e);
                 }
 
                 if (TaskManagerCancellationToken.IsCancellationRequested)
@@ -86,22 +88,24 @@
                     break;
                 }
 
-                if (!IsExecutorEnabled())
+                if (!LinkedMetadata.IsExecutorEnabled)
                 {
                     break;
                 }
 
-                if (GlobalApproveNewExecutorCreationCriteria() && ShouldTryToCreateNewPuller())
+                if (LinkedMetadata.GlobalApproveNewExecutorCreationCriteriaInContext() && ShouldTryToCreateNewPuller())
                 {
+                    CreatingNewPuller?.Invoke(this, EventArgs.Empty);
 #pragma warning disable 4014
-                    CreateNewTaskExecutor();
+                    LinkedMetadata.CreateNewTaskExecutor();
 #pragma warning restore 4014
+                    NewPullerCreated?.Invoke(this, EventArgs.Empty);
                 }
 
                 if (!ShouldTryTerminateCurrentPuller()) continue;
 
                 //Try kill itself
-                if (await TryPerformLogoutAsync().ConfigureAwait(false))
+                if (await LinkedMetadata.TryPerformLogoutAsync().ConfigureAwait(false))
                 {
                     alreadyLogout = true;
                     break;
@@ -110,10 +114,20 @@
 
             if (!alreadyLogout)
             {
-                await ForceLogoutAsync().ConfigureAwait(false);
+                await LinkedMetadata.ForceLogoutAsync().ConfigureAwait(false);
             }
 
+            TaskPullerFinalized?.Invoke(this, EventArgs.Empty);
             ExecutorLogger.LogInfo($"Execution safely exited");
         }
+
+        public event EventHandler TaskPullerStarted;
+        public event EventHandler TaskPullerFinalized;
+        public event EventHandler ExecutionStarting;
+        public event EventHandler ExecutionFinished;
+        public event EventHandler CreatingNewPuller;
+        public event EventHandler NewPullerCreated;
+        public event EventHandler ExecutionTimeoutEvent;
+        public event ExceptionEventHandler ExecutionExceptionHandler;
     }
 }

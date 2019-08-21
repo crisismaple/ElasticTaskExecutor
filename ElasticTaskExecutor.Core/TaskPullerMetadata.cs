@@ -109,13 +109,7 @@
         
         private void LinkNewExecutor(TaskPuller puller)
         {
-            puller.TaskManagerCancellationToken = TaskManagerCancellationToken;
-            puller.IsExecutorEnabled = () => IsExecutorEnabled;
-            puller.GetExecutionTimeout = () => ExecutionTimeout;
-            puller.CreateNewTaskExecutor = CreateNewTaskExecutor;
-            puller.ForceLogoutAsync = ForceLogoutAsync;
-            puller.TryPerformLogoutAsync = TryPerformLogoutAsync;
-            puller.GlobalApproveNewExecutorCreationCriteria = GlobalApproveNewExecutorCreationCriteriaInContext;
+            puller.LinkedMetadata = this;
         }
 
         private async Task<bool> TryAllocateNewTaskExecutorIndexAsync()

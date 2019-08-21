@@ -12,19 +12,27 @@
         protected TaskSubscriber(ILogger executorLogger) : base(executorLogger)
         {
         }
-        
-        internal ChannelReader<T> TaskQueueReader { get; set; }
+
+        private ChannelReader<T> TaskQueueReader => LinkedMetadata.LocalCache.Reader;
+
+        internal TaskSubscriberMetadata<T> LinkedMetadata;
+
+        internal CancellationTokenSource TaskManagerCancellationToken { get; set; }
+
+        private TimeSpan? ExecutionTimeout => LinkedMetadata.ExecutionTimeout;
 
         protected abstract Task Execution(T taskPayload, CancellationTokenSource cts);
 
         internal async Task StartSubscribe()
         {
+            var reader = TaskQueueReader;
+            SubscriberStarted?.Invoke(this, EventArgs.Empty);
             while (true)
             {
                 T newPayload;
                 try
                 {
-                    newPayload = await TaskQueueReader.ReadAsync(TaskManagerCancellationToken.Token).ConfigureAwait(false);
+                    newPayload = await reader.ReadAsync(TaskManagerCancellationToken.Token).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {
@@ -38,7 +46,7 @@
                 
                 var cts = TaskManagerCancellationToken;
                 CancellationTokenSource localCts = null;
-                var timeout = GetExecutionTimeout();
+                var timeout = ExecutionTimeout;
                 if (timeout.HasValue)
                 {
                     localCts = new CancellationTokenSource(timeout.Value);
@@ -48,7 +56,9 @@
                 }
                 try
                 {
+                    ExecutionStarting?.Invoke(this, EventArgs.Empty);
                     await Execution(newPayload, cts).ConfigureAwait(false);
+                    ExecutionFinished?.Invoke(this, EventArgs.Empty);
                 }
                 catch (OperationCanceledException)
                 {
@@ -56,6 +66,7 @@
                     {
                         ExecutorLogger.LogWarning(
                             $"Execution been cancelled due to exceed timeout {timeout?.TotalSeconds} seconds");
+                        ExecutionTimeoutEvent?.Invoke(this, EventArgs.Empty);
                     }
                     else
                     {
@@ -71,6 +82,7 @@
                 catch (Exception e)
                 {
                     ExecutorLogger.LogWarning($"Meet exceptions in {nameof(StartSubscribe)}: {e}");
+                    ExecutionExceptionHandler?.Invoke(this, e);
                 }
 
                 if (TaskManagerCancellationToken.IsCancellationRequested)
@@ -80,6 +92,15 @@
             }
 
             ExecutorLogger.LogInfo($"Execution safely exited");
+            TaskSubscriberFinalized?.Invoke(this, EventArgs.Empty);
         }
+
+
+        public event EventHandler SubscriberStarted;
+        public event EventHandler TaskSubscriberFinalized;
+        public event EventHandler ExecutionStarting;
+        public event EventHandler ExecutionFinished;
+        public event EventHandler ExecutionTimeoutEvent;
+        public event ExceptionEventHandler ExecutionExceptionHandler;
     }
 }
