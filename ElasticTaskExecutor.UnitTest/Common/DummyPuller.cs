@@ -8,36 +8,37 @@
 
     public class DummyPuller : TaskPuller
     {
-        public DummyPuller(ILogger logger) : base(logger)
+        private readonly ILogger logger;
+
+        public DummyPuller(ILogger logger)
         {
+            this.logger = logger;
+            ExecutionStarting += o => logger.LogInfo($"Entering {o.Id} {nameof(Execution)}");
+            ExecutionFinished += o => logger.LogInfo($"Exiting {o.Id} {nameof(Execution)}");
+            ExecutionCancelled += o => logger.LogInfo($"Cancelled {o.Id} {nameof(Execution)}");
+
         }
         private readonly Random _seed = new Random();
 
         protected override async Task Execution(CancellationTokenSource cts)
         {
-            ExecutorLogger.LogInfo($"Entering {nameof(Execution)}, cancellation source status {cts.IsCancellationRequested}");
-            if (cts.IsCancellationRequested)
-            {
-                ExecutorLogger.LogInfo($"Existing {nameof(Execution)}, cancellation source status {cts.IsCancellationRequested}");
-                return;
-            }
+            cts.Token.ThrowIfCancellationRequested();
             var sleepInterval = _seed.Next(1000, 2000);
-            ExecutorLogger.LogInfo($"Sleeping {sleepInterval}ms in {nameof(Execution)}");
+            logger.LogInfo($"Sleeping {sleepInterval}ms in {Id} {nameof(Execution)}");
             await Task.Delay(sleepInterval).ConfigureAwait(false);
-            ExecutorLogger.LogInfo($"Exiting {nameof(Execution)}, cancellation source status {cts.IsCancellationRequested}");
         }
 
         protected override bool ShouldTryToCreateNewPuller()
         {
             var result = _seed.Next() % 2 == 1;
-            ExecutorLogger.LogInfo($"Return {result} from {nameof(ShouldTryToCreateNewPuller)}");
+            logger.LogInfo($"Return {result} from {Id}");
             return result;
         }
 
         protected override bool ShouldTryTerminateCurrentPuller()
         {
             var result = _seed.Next() % 2 == 1;
-            ExecutorLogger.LogInfo($"Return {result} from {nameof(ShouldTryTerminateCurrentPuller)}");
+            logger.LogInfo($"Return {result} from {Id}");
             return result;
         }
     }

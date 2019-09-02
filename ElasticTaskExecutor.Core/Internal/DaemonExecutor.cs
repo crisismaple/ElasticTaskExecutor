@@ -16,13 +16,17 @@
         public DaemonExecutor(ILogger executorLogger,
             Dictionary<int, TaskPullerMetadata> executorRegistry,
             Func<TimeSpan> executionMonitoringIntervalFunc,
-            Func<bool> printMonitorInfoFunc) :
-            base(executorLogger)
+            Func<bool> printMonitorInfoFunc)
         {
             _executorRegistry = executorRegistry;
             _executionMonitoringIntervalFunc = executionMonitoringIntervalFunc;
             _printMonitorInfoFunc = printMonitorInfoFunc;
+            ExecutorLogger = executorLogger;
+            this.ExecutionStarting += o => ExecutorLogger?.LogInfo($"{nameof(DaemonExecutor)} {Id.ToString()} started");
+            this.ExecutionFinished += o => ExecutorLogger?.LogInfo($"{nameof(DaemonExecutor)} {Id.ToString()} finished");
         }
+
+        private ILogger ExecutorLogger { get; }
 
         protected override async Task Execution(CancellationTokenSource cts)
         {

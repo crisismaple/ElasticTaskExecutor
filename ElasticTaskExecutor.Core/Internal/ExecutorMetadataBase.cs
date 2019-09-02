@@ -8,14 +8,12 @@
     public abstract class ExecutorMetadataBase<T> where T: ExecutorBase
     {
         internal long RunningExecutorCounter = 0L;
-        
+
         public abstract int TaskExecutorTypeId { get; }
 
         public string TaskExecutorName { get; set; }
 
-        protected abstract ILogger Logger { get; }
-
-        public TimeSpan? ExecutionTimeout { get; set; }
+        public abstract TimeSpan? ExecutionTimeout { get; }
 
         public abstract long GetExecutorCounter();
 
@@ -37,7 +35,7 @@
         {
             return $"{TaskExecutorTypeId}:{TaskExecutorName}";
         }
-        
+
         protected abstract T ExecutorActivator();
 
     }

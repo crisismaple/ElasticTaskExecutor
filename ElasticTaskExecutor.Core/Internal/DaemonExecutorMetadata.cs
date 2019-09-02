@@ -7,15 +7,14 @@
     {
         private readonly Func<DaemonExecutor> _daemonExecutorConstructor;
 
-        public DaemonExecutorMetadata(ILogger logger, Func<DaemonExecutor> daemonExecutorConstructor)
+        public DaemonExecutorMetadata(Func<DaemonExecutor> daemonExecutorConstructor)
         {
-            Logger = logger;
             _daemonExecutorConstructor = daemonExecutorConstructor;
             TaskExecutorName = nameof(DaemonExecutor);
         }
-
         public override int TaskExecutorTypeId => Constraint.DaemonExecutorId;
-        protected override ILogger Logger { get; }
+
+        public override TimeSpan? ExecutionTimeout => null;
 
         public override long GetMinExecutorCount()
         {
@@ -26,7 +25,7 @@
         {
             return 1;
         }
-        
+
         protected override TaskPuller ExecutorActivator()
         {
             return _daemonExecutorConstructor();

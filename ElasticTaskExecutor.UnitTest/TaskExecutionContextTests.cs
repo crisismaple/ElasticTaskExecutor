@@ -19,10 +19,10 @@ namespace ElasticTaskExecutor.UnitTest
             var dummyMetadata = new DummyPullerMetadata(logger, 0, nameof(DummyPuller));
 
 
-            var subscription = TaskSubscriberMetadata<long>.CreateNewSubscription(logger,
+            var subscription = TaskSubscriberMetadata<long>.CreateNewSubscription(
                 2,
                 10,
-                () => new DummySubscriber<long>(logger));
+                () => new DummySubscriber<long>(), TimeSpan.FromMinutes(30));
 
 
             using (var context = new TaskExecutionContext(logger, monitorTimespan, exitTimespan, true))

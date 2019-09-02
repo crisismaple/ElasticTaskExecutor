@@ -9,10 +9,6 @@
 
     public abstract class TaskSubscriber<T> : ExecutorBase
     {
-        protected TaskSubscriber(ILogger executorLogger) : base(executorLogger)
-        {
-        }
-
         private ChannelReader<T> TaskQueueReader => LinkedMetadata.LocalCache.Reader;
 
         internal TaskSubscriberMetadata<T> LinkedMetadata;
@@ -26,7 +22,7 @@
         internal async Task StartSubscribe()
         {
             var reader = TaskQueueReader;
-            SubscriberStarted?.Invoke(this, EventArgs.Empty);
+            SubscriberStarted?.Invoke(this);
             while (true)
             {
                 T newPayload;
@@ -40,10 +36,10 @@
                 }
                 catch (Exception e)
                 {
-                    ExecutorLogger.LogWarning($"Got exception when subscribing task :{e}");
+                    TaskPayloadFetchException?.Invoke(this, e);
                     continue;
                 }
-                
+
                 var cts = TaskManagerCancellationToken;
                 CancellationTokenSource localCts = null;
                 var timeout = ExecutionTimeout;
@@ -56,33 +52,30 @@
                 }
                 try
                 {
-                    ExecutionStarting?.Invoke(this, EventArgs.Empty);
+                    ExecutionStarting?.Invoke(this);
                     await Execution(newPayload, cts).ConfigureAwait(false);
-                    ExecutionFinished?.Invoke(this, EventArgs.Empty);
+                    ExecutionFinished?.Invoke(this);
                 }
-                catch (OperationCanceledException)
+                catch (OperationCanceledException ex)
                 {
                     if (localCts?.IsCancellationRequested ?? false)
                     {
-                        ExecutorLogger.LogWarning(
-                            $"Execution been cancelled due to exceed timeout {timeout?.TotalSeconds} seconds");
-                        ExecutionTimeoutEvent?.Invoke(this, EventArgs.Empty);
+                        ExecutionTimeoutEvent?.Invoke(this);
                     }
                     else
                     {
-                        ExecutorLogger.LogWarning($"Execution been cancelled");
+                        SubscriberCancelled?.Invoke(this, ex);
                         break;
                     }
                 }
-                catch (ObjectDisposedException)
+                catch (ObjectDisposedException ed)
                 {
-                    ExecutorLogger.LogWarning($"ServiceCancellationTokenSource disposed, execution been cancelled");
+                    SubscriberCancelled?.Invoke(this, ed);
                     break;
                 }
                 catch (Exception e)
                 {
-                    ExecutorLogger.LogWarning($"Meet exceptions in {nameof(StartSubscribe)}: {e}");
-                    ExecutionExceptionHandler?.Invoke(this, e);
+                    ExecutionException?.Invoke(this, e);
                 }
 
                 if (TaskManagerCancellationToken.IsCancellationRequested)
@@ -90,17 +83,16 @@
                     break;
                 }
             }
-
-            ExecutorLogger.LogInfo($"Execution safely exited");
-            TaskSubscriberFinalized?.Invoke(this, EventArgs.Empty);
+            TaskSubscriberFinalized?.Invoke(this);
         }
 
-
-        public event EventHandler SubscriberStarted;
-        public event EventHandler TaskSubscriberFinalized;
-        public event EventHandler ExecutionStarting;
-        public event EventHandler ExecutionFinished;
-        public event EventHandler ExecutionTimeoutEvent;
-        public event ExceptionEventHandler ExecutionExceptionHandler;
+        public event ExecutorEventHandler SubscriberStarted;
+        public event ExecutorEventHandler TaskSubscriberFinalized;
+        public event ExecutorEventHandler ExecutionStarting;
+        public event ExecutorEventHandler ExecutionFinished;
+        public event ExecutorEventHandler ExecutionTimeoutEvent;
+        public event ExceptionEventHandler SubscriberCancelled;
+        public event ExceptionEventHandler ExecutionException;
+        public event ExceptionEventHandler TaskPayloadFetchException;
     }
 }
