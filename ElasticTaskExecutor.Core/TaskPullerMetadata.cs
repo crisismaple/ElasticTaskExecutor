@@ -1,4 +1,6 @@
-﻿namespace ElasticTaskExecutor.Core
+﻿using ElasticTaskExecutor.Core.Common;
+
+namespace ElasticTaskExecutor.Core
 {
     using System;
     using System.Threading;
@@ -8,7 +10,7 @@
     public abstract class TaskPullerMetadata : ExecutorMetadataBase<TaskPuller>
     {
         internal readonly SemaphoreSlim OperationSemaphoreSlim = new SemaphoreSlim(1, 1);
-        
+
         /// <summary>
         /// Only be evaluated when context trying to activate a suspended puller
         /// </summary>
@@ -38,10 +40,11 @@
 
         internal override async Task CreateNewTaskExecutor()
         {
-            if (await TryAllocateNewTaskExecutorIndexAsync().ConfigureAwait(false))
+            try
             {
-                try
+                if (await TryAllocateNewTaskExecutorIndexAsync().ConfigureAwait(false))
                 {
+
                     TaskPuller puller = null;
                     try
                     {
@@ -49,8 +52,7 @@
                     }
                     catch (Exception e)
                     {
-                        Logger?.LogError(
-                            $"Met exception in {nameof(ExecutorActivator)} for {TaskExecutorTypeId} puller {TaskExecutorName}:{e}");
+                        ExecutorActivationException?.Invoke(this, e);
                         Interlocked.Decrement(ref RunningExecutorCounter);
                         return;
                     }
@@ -58,17 +60,12 @@
                     LinkNewExecutor(puller);
                     await puller.PullTaskAsync().ConfigureAwait(false);
                     puller?.Dispose();
+
                 }
-                catch (TaskCanceledException)
-                {
-                    Logger?.LogInfo(
-                        $"Task execution been cancelled in {nameof(CreateNewTaskExecutor)} for {TaskExecutorTypeId} puller {TaskExecutorName}");
-                }
-                catch (Exception e)
-                {
-                    Logger?.LogError(
-                        $"Met exception in {nameof(CreateNewTaskExecutor)} for {TaskExecutorTypeId} puller {TaskExecutorName}:{e}");
-                }
+            }
+            catch (Exception e)
+            {
+                PullerExecutionException?.Invoke(this, e);
             }
         }
 
@@ -106,7 +103,7 @@
                 OperationSemaphoreSlim.Release();
             }
         }
-        
+
         private void LinkNewExecutor(TaskPuller puller)
         {
             puller.LinkedMetadata = this;
@@ -127,5 +124,9 @@
                 OperationSemaphoreSlim.Release();
             }
         }
+
+
+        public event ExceptionEventHandler ExecutorActivationException;
+        public event ExceptionEventHandler PullerExecutionException;
     }
 }

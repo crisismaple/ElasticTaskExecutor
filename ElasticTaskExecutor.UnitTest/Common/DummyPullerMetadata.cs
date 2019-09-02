@@ -1,5 +1,6 @@
 ﻿namespace ElasticTaskExecutor.UnitTest.Common
 {
+    using System;
     using Core;
     using Core.Common;
 
@@ -19,7 +20,10 @@
         public override bool IsExecutorEnabled => IsEnabled;
 
         public override int TaskExecutorTypeId { get; }
-        protected override ILogger Logger { get; }
+
+        public override TimeSpan? ExecutionTimeout => null;
+
+        protected ILogger Logger { get; }
         public override long GetMinExecutorCount()
         {
             return 2;

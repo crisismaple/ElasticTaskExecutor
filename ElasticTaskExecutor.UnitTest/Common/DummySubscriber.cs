@@ -4,11 +4,10 @@
     using System.Threading;
     using System.Threading.Tasks;
     using Core;
-    using Core.Common;
 
     public class DummySubscriber<T>: TaskSubscriber<T>
     {
-        public DummySubscriber(ILogger executorLogger) : base(executorLogger)
+        public DummySubscriber()
         {
         }
 

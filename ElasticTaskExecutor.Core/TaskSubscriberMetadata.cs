@@ -11,15 +11,15 @@
 
     public sealed class TaskSubscriberMetadata<T> : ExecutorMetadataBase<TaskSubscriber<T>>
     {
-        private readonly SemaphoreSlim _stateChangeSemaphoreSlim = new SemaphoreSlim(1,1);
+        private readonly SemaphoreSlim _stateChangeSemaphoreSlim = new SemaphoreSlim(1, 1);
 
         private volatile int _maxSubscriberCount = 0;
 
         internal TaskSubscriberMetadata(
-            ILogger logger,
             int taskExecutorTypeId,
-            int maxSubscriberCount, 
-            Func<TaskSubscriber<T>> subscriberActivator, 
+            int maxSubscriberCount,
+            Func<TaskSubscriber<T>> subscriberActivator,
+            TimeSpan? executionTimeout,
             int? maxCacheLength = null,
             bool allowSynchronousContinuations = false)
         {
@@ -33,9 +33,9 @@
                 throw new ArgumentOutOfRangeException(nameof(maxCacheLength));
             }
             TaskManagerCancellationToken = new CancellationTokenSource();
-            Logger = logger;
             TaskExecutorTypeId = taskExecutorTypeId;
             _subscriberActivator = subscriberActivator;
+            ExecutionTimeout = executionTimeout;
             LocalCache = maxCacheLength == null
                 ? Channel.CreateUnbounded<T>(new UnboundedChannelOptions()
                 {
@@ -55,14 +55,18 @@
         internal AsyncAutoResetEvent InstanceCancelEvent = new AsyncAutoResetEvent();
 
         public static TaskSubscriberMetadata<T> CreateNewSubscription(
-            ILogger logger,
             int taskExecutorTypeId,
             int maxSubscriberCount,
             Func<TaskSubscriber<T>> subscriberActivator,
+            TimeSpan? executionTimeout,
             int? maxCacheLength = null
         )
         {
-            return new TaskSubscriberMetadata<T>(logger, taskExecutorTypeId, maxSubscriberCount, subscriberActivator,
+            return new TaskSubscriberMetadata<T>(
+                taskExecutorTypeId,
+                maxSubscriberCount,
+                subscriberActivator,
+                executionTimeout,
                 maxCacheLength);
         }
 
@@ -78,23 +82,18 @@
                 }
                 catch (Exception e)
                 {
-                    Logger?.LogError(
-                        $"Met exception in {nameof(ExecutorActivator)} for {TaskExecutorTypeId} subscriber {TaskExecutorName}:{e}");
+                    ExecutorActivationException?.Invoke(this, e);
                     return;
                 }
                 LinkNewExecutor(subscriber);
+                SubscriberExecutionStarting?.Invoke(subscriber);
                 await subscriber.StartSubscribe().ConfigureAwait(false);
+                SubscriberFinalized?.Invoke(subscriber);
                 subscriber?.Dispose();
-            }
-            catch (TaskCanceledException)
-            {
-                Logger?.LogInfo(
-                    $"Task execution been cancelled in {nameof(CreateNewTaskExecutor)} for {TaskExecutorTypeId} subscriber {TaskExecutorName}");
             }
             catch (Exception e)
             {
-                Logger?.LogError(
-                    $"Met exception in {nameof(CreateNewTaskExecutor)} for {TaskExecutorTypeId} subscriber {TaskExecutorName}:{e}");
+                SubscriberExecutionException?.Invoke(this, e);
             }
             finally
             {
@@ -160,7 +159,7 @@
             {
                 throw new ObjectDisposedException(nameof(TaskSubscriberMetadata<T>));
             }
-            
+
             await _stateChangeSemaphoreSlim.WaitAsync(ctx).ConfigureAwait(false);
             try
             {
@@ -180,7 +179,7 @@
                 _stateChangeSemaphoreSlim.Release();
             }
         }
-        
+
         public async Task StopSubscriptionAsync(CancellationToken cts)
         {
             try
@@ -235,13 +234,12 @@
 
         public override int TaskExecutorTypeId { get; }
 
-        protected override ILogger Logger { get; }
+        public override TimeSpan? ExecutionTimeout { get; }
 
         public override long GetExecutorCounter()
         {
             return Interlocked.Read(ref RunningExecutorCounter);
         }
-
 
         public async Task PublishTask(T task, CancellationToken ctx)
         {
@@ -252,5 +250,11 @@
 
             await LocalCache.Writer.WriteAsync(task, ctx).ConfigureAwait(false);
         }
+
+
+        public event ExceptionEventHandler ExecutorActivationException;
+        public event ExceptionEventHandler SubscriberExecutionException;
+        public event ExecutorEventHandler SubscriberFinalized;
+        public event ExecutorEventHandler SubscriberExecutionStarting;
     }
 }

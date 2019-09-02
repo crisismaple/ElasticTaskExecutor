@@ -23,6 +23,7 @@
         public TimeSpan ExecutionMonitoringInterval;
         public TimeSpan ExitMonitoringInterval;
         public bool PrintMonitorInfo;
+
         public TaskExecutionContext(ILogger logger, TimeSpan executionMonitoringInterval,
             TimeSpan exitMonitoringInterval, bool printMonitorInfo = false)
         {
@@ -30,15 +31,14 @@
             ExecutionMonitoringInterval = executionMonitoringInterval;
             ExitMonitoringInterval = exitMonitoringInterval;
             PrintMonitorInfo = printMonitorInfo;
-            var daemonExecutorMetadata = new DaemonExecutorMetadata(_logger,
-                () =>
-                {
-                    return new DaemonExecutor(
-                        logger,
-                        _executorRegistry,
-                        () => executionMonitoringInterval,
-                        () => printMonitorInfo);
-                });
+            var daemonExecutorMetadata = new DaemonExecutorMetadata(() =>
+            {
+                return new DaemonExecutor(
+                    logger,
+                    _executorRegistry,
+                    () => executionMonitoringInterval,
+                    () => printMonitorInfo);
+            });
             TryRegisterNewExecutorInternalAsync(daemonExecutorMetadata, CancellationToken.None).Wait();
 #pragma warning disable 4014
             daemonExecutorMetadata.CreateNewTaskExecutor();
@@ -55,7 +55,8 @@
             return await TryRegisterNewExecutorInternalAsync(metadata, cancellation).ConfigureAwait(false);
         }
 
-        private async Task<bool> TryRegisterNewExecutorInternalAsync(TaskPullerMetadata metadata, CancellationToken cancellation)
+        private async Task<bool> TryRegisterNewExecutorInternalAsync(TaskPullerMetadata metadata,
+            CancellationToken cancellation)
         {
             try
             {
@@ -66,6 +67,7 @@
             {
                 return false;
             }
+
             try
             {
                 if (!_isFinalizing)
@@ -75,10 +77,12 @@
                     {
                         return false;
                     }
+
                     HandleMetadataRegistration(metadata);
                     _executorRegistry.Add(key, metadata);
                     return true;
                 }
+
                 return false;
             }
             finally
@@ -116,6 +120,7 @@
                     _executorRegistry.Remove(taskExecutorTypeId);
                     HandleMetadataUnRegistration(metadataInstance);
                 }
+
                 return true;
             }
             finally
@@ -140,7 +145,7 @@
             while (true)
             {
                 var currentRunningStatus = _executorRegistry.ToDictionary(kv => kv.Key,
-                    kv => (TaskExecutorName: kv.Value.TaskExecutorName, kv.Value.GetExecutorCounter()));
+                    kv => (kv.Value.TaskExecutorName, kv.Value.GetExecutorCounter()));
                 var currentRunningTaskCnt = currentRunningStatus.Values.Select(m => m.Item2).Sum();
                 if (currentRunningTaskCnt <= 0)
                 {
@@ -148,6 +153,7 @@
                     {
                         _logger?.LogInfo("All executors exited gracefully");
                     }
+
                     break;
                 }
 

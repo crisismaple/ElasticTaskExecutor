@@ -8,16 +8,12 @@
 
     public abstract class TaskPuller : ExecutorBase
     {
-        protected TaskPuller(ILogger executorLogger) : base(executorLogger)
-        {
-        }
-
         internal TaskPullerMetadata LinkedMetadata { get; set; }
-        
+
         protected abstract bool ShouldTryToCreateNewPuller();
 
         protected abstract bool ShouldTryTerminateCurrentPuller();
-        
+
         protected abstract Task Execution(CancellationTokenSource cts);
 
         private CancellationTokenSource TaskManagerCancellationToken =>
@@ -28,7 +24,7 @@
         internal async Task PullTaskAsync()
         {
             var alreadyLogout = false;
-            TaskPullerStarted?.Invoke(this, EventArgs.Empty);
+            TaskPullerStarted?.Invoke(this);
             while (true)
             {
                 if (TaskManagerCancellationToken.IsCancellationRequested)
@@ -54,32 +50,28 @@
 
                 try
                 {
-                    ExecutionStarting?.Invoke(this, EventArgs.Empty);
+                    ExecutionStarting?.Invoke(this);
                     await Execution(cts).ConfigureAwait(false);
-                    ExecutionFinished?.Invoke(this, EventArgs.Empty);
+                    ExecutionFinished?.Invoke(this);
                 }
                 catch (OperationCanceledException)
                 {
                     if (localCts?.IsCancellationRequested ?? false)
                     {
-                        ExecutorLogger.LogWarning(
-                            $"Execution been cancelled due to exceed timeout {timeout?.TotalSeconds} seconds");
-                        ExecutionTimeoutEvent?.Invoke(this, EventArgs.Empty);
+                        ExecutionTimeoutEvent?.Invoke(this);
                     }
                     else
                     {
-                        ExecutorLogger.LogWarning($"Execution been cancelled");
+                        ExecutionCancelled?.Invoke(this);
                         break;
                     }
                 }
                 catch (ObjectDisposedException)
                 {
-                    ExecutorLogger.LogWarning($"ServiceCancellationTokenSource disposed, execution been cancelled");
                     break;
                 }
                 catch (Exception e)
                 {
-                    ExecutorLogger.LogWarning($"Meet exceptions in {nameof(PullTaskAsync)}: {e}");
                     ExecutionExceptionHandler?.Invoke(this, e);
                 }
 
@@ -95,11 +87,11 @@
 
                 if (LinkedMetadata.GlobalApproveNewExecutorCreationCriteriaInContext() && ShouldTryToCreateNewPuller())
                 {
-                    CreatingNewPuller?.Invoke(this, EventArgs.Empty);
+                    CreatingNewPuller?.Invoke(this);
 #pragma warning disable 4014
                     LinkedMetadata.CreateNewTaskExecutor();
 #pragma warning restore 4014
-                    NewPullerCreated?.Invoke(this, EventArgs.Empty);
+                    NewPullerCreated?.Invoke(this);
                 }
 
                 if (!ShouldTryTerminateCurrentPuller()) continue;
@@ -117,17 +109,17 @@
                 await LinkedMetadata.ForceLogoutAsync().ConfigureAwait(false);
             }
 
-            TaskPullerFinalized?.Invoke(this, EventArgs.Empty);
-            ExecutorLogger.LogInfo($"Execution safely exited");
+            TaskPullerFinalized?.Invoke(this);
         }
 
-        public event EventHandler TaskPullerStarted;
-        public event EventHandler TaskPullerFinalized;
-        public event EventHandler ExecutionStarting;
-        public event EventHandler ExecutionFinished;
-        public event EventHandler CreatingNewPuller;
-        public event EventHandler NewPullerCreated;
-        public event EventHandler ExecutionTimeoutEvent;
+        public event ExecutorEventHandler TaskPullerStarted;
+        public event ExecutorEventHandler TaskPullerFinalized;
+        public event ExecutorEventHandler ExecutionStarting;
+        public event ExecutorEventHandler ExecutionFinished;
+        public event ExecutorEventHandler ExecutionCancelled;
+        public event ExecutorEventHandler CreatingNewPuller;
+        public event ExecutorEventHandler NewPullerCreated;
+        public event ExecutorEventHandler ExecutionTimeoutEvent;
         public event ExceptionEventHandler ExecutionExceptionHandler;
     }
 }
