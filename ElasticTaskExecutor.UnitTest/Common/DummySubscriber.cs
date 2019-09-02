@@ -7,10 +7,6 @@
 
     public class DummySubscriber<T>: TaskSubscriber<T>
     {
-        public DummySubscriber()
-        {
-        }
-
         protected override async Task Execution(T taskPayload, CancellationTokenSource cts)
         {
             await Task.Delay(1000).ConfigureAwait(false);
