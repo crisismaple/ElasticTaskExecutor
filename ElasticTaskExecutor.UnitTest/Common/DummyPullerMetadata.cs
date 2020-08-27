@@ -1,8 +1,9 @@
-﻿namespace ElasticTaskExecutor.UnitTest.Common
+﻿using Microsoft.Extensions.Logging;
+
+namespace ElasticTaskExecutor.UnitTest.Common
 {
     using System;
     using Core;
-    using Core.Common;
 
     public class DummyPullerMetadata : TaskPullerMetadata
     {
