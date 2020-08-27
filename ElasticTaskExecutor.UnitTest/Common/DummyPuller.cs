@@ -1,10 +1,11 @@
-﻿namespace ElasticTaskExecutor.UnitTest.Common
+﻿using Microsoft.Extensions.Logging;
+
+namespace ElasticTaskExecutor.UnitTest.Common
 {
     using System;
     using System.Threading;
     using System.Threading.Tasks;
     using Core;
-    using Core.Common;
 
     public class DummyPuller : TaskPuller
     {
@@ -13,9 +14,9 @@
         public DummyPuller(ILogger logger)
         {
             this.logger = logger;
-            ExecutionStarting += o => logger.LogInfo($"Entering {o.Id} {nameof(Execution)}");
-            ExecutionFinished += o => logger.LogInfo($"Exiting {o.Id} {nameof(Execution)}");
-            ExecutionCancelled += o => logger.LogInfo($"Cancelled {o.Id} {nameof(Execution)}");
+            ExecutionStarting += o => logger.LogInformation($"Entering {o.Id} {nameof(Execution)}");
+            ExecutionFinished += o => logger.LogInformation($"Exiting {o.Id} {nameof(Execution)}");
+            ExecutionCancelled += o => logger.LogInformation($"Cancelled {o.Id} {nameof(Execution)}");
 
         }
         private readonly Random _seed = new Random();
@@ -24,21 +25,21 @@
         {
             cts.Token.ThrowIfCancellationRequested();
             var sleepInterval = _seed.Next(1000, 2000);
-            logger.LogInfo($"Sleeping {sleepInterval}ms in {Id} {nameof(Execution)}");
+            logger.LogInformation($"Sleeping {sleepInterval}ms in {Id} {nameof(Execution)}");
             await Task.Delay(sleepInterval).ConfigureAwait(false);
         }
 
         protected override bool ShouldTryToCreateNewPuller()
         {
             var result = _seed.Next() % 2 == 1;
-            logger.LogInfo($"Return {result} from {Id}");
+            logger.LogInformation($"Return {result} from {Id}");
             return result;
         }
 
         protected override bool ShouldTryTerminateCurrentPuller()
         {
             var result = _seed.Next() % 2 == 1;
-            logger.LogInfo($"Return {result} from {Id}");
+            logger.LogInformation($"Return {result} from {Id}");
             return result;
         }
     }

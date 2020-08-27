@@ -1,4 +1,6 @@
-﻿namespace ElasticTaskExecutor.Core
+﻿using Microsoft.Extensions.Logging;
+
+namespace ElasticTaskExecutor.Core
 {
     using System;
     using System.Collections.Generic;
@@ -22,27 +24,38 @@
         private readonly ILogger _logger;
         public TimeSpan ExecutionMonitoringInterval;
         public TimeSpan ExitMonitoringInterval;
-        public bool PrintMonitorInfo;
 
+        private readonly LogLevel _monitorInfoLogLevel;
+
+        private readonly DaemonExecutorMetadata _daemonExecutorMetadata;
+        
         public TaskExecutionContext(ILogger logger, TimeSpan executionMonitoringInterval,
-            TimeSpan exitMonitoringInterval, bool printMonitorInfo = false)
+            TimeSpan exitMonitoringInterval, LogLevel monitorInfoLogLevel = LogLevel.Information, bool startNow = false)
         {
             _logger = logger;
             ExecutionMonitoringInterval = executionMonitoringInterval;
             ExitMonitoringInterval = exitMonitoringInterval;
-            PrintMonitorInfo = printMonitorInfo;
-            var daemonExecutorMetadata = new DaemonExecutorMetadata(() =>
+            _monitorInfoLogLevel = monitorInfoLogLevel;
+            _daemonExecutorMetadata = new DaemonExecutorMetadata(() =>
             {
                 return new DaemonExecutor(
                     logger,
                     _executorRegistry,
                     () => executionMonitoringInterval,
-                    () => printMonitorInfo);
+                    () => _monitorInfoLogLevel);
             });
-            TryRegisterNewExecutorInternalAsync(daemonExecutorMetadata, CancellationToken.None).Wait();
+            TryRegisterNewExecutorInternalAsync(_daemonExecutorMetadata, CancellationToken.None).Wait();
+            if (startNow)
+            {
 #pragma warning disable 4014
-            daemonExecutorMetadata.CreateNewTaskExecutor();
+                StartAsync(CancellationToken.None);
 #pragma warning restore 4014
+            }
+        }
+
+        public async Task StartAsync(CancellationToken token)
+        {
+            await _daemonExecutorMetadata.CreateNewTaskExecutor(token).ConfigureAwait(false);
         }
 
         public async Task<bool> TryRegisterNewExecutorAsync(TaskPullerMetadata metadata, CancellationToken cancellation)
@@ -129,10 +142,10 @@
             }
         }
 
-        public async Task FinalizeAsync()
+        public async Task FinalizeAsync(CancellationToken ct)
         {
             _cts.Cancel();
-            await _operationSemaphoreSlim.WaitAsync().ConfigureAwait(false);
+            await _operationSemaphoreSlim.WaitAsync(ct).ConfigureAwait(false);
             try
             {
                 _isFinalizing = true;
@@ -142,35 +155,30 @@
                 _operationSemaphoreSlim.Release();
             }
 
-            while (true)
+            while (!ct.IsCancellationRequested)
             {
                 var currentRunningStatus = _executorRegistry.ToDictionary(kv => kv.Key,
                     kv => (kv.Value.TaskExecutorName, kv.Value.GetExecutorCounter()));
                 var currentRunningTaskCnt = currentRunningStatus.Values.Select(m => m.Item2).Sum();
                 if (currentRunningTaskCnt <= 0)
                 {
-                    if (PrintMonitorInfo)
-                    {
-                        _logger?.LogInfo("All executors exited gracefully");
-                    }
-
+                    _logger?.Log(_monitorInfoLogLevel, "All executors exited gracefully");
                     break;
                 }
 
-                if (PrintMonitorInfo)
+
+                _logger?.Log(_monitorInfoLogLevel,
+                    $"Waiting safe exit. Pending executor info: {currentRunningTaskCnt} task is running.");
+                foreach (var kv in currentRunningStatus)
                 {
-                    _logger?.LogInfo(
-                        $"Waiting safe exit. Pending executor info: {currentRunningTaskCnt} task is running.");
-                    foreach (var kv in currentRunningStatus)
+                    if (kv.Value.Item2 > 0)
                     {
-                        if (kv.Value.Item2 > 0)
-                        {
-                            _logger?.LogInfo($"{kv.Key}: ({kv.Value.TaskExecutorName}) -> {kv.Value.Item2} running;");
-                        }
+                        _logger?.Log(_monitorInfoLogLevel,
+                            $"{kv.Key}: ({kv.Value.TaskExecutorName}) -> {kv.Value.Item2} running;");
                     }
                 }
 
-                await Task.Delay(ExitMonitoringInterval).ConfigureAwait(false);
+                await Task.Delay(ExitMonitoringInterval, ct).ConfigureAwait(false);
             }
 
             foreach (var taskExecutorMetadata in _executorRegistry)

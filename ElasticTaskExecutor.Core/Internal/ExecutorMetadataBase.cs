@@ -28,7 +28,7 @@
 
         internal volatile CancellationTokenSource TaskManagerCancellationToken;
 
-        internal abstract Task CreateNewTaskExecutor();
+        internal abstract Task CreateNewTaskExecutor(CancellationToken token);
 
         internal string GetTaskExecutorIndex()
         {

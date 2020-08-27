@@ -1,7 +1,8 @@
-﻿namespace ElasticTaskExecutor.Extensions
+﻿using Microsoft.Extensions.Logging;
+
+namespace ElasticTaskExecutor.Extensions
 {
     using System;
-    using Core.Common;
 
     public static class LoggerExtension
     {

@@ -21,7 +21,7 @@
 
         private TimeSpan? ExecutionTimeout => LinkedMetadata.ExecutionTimeout;
 
-        internal async Task PullTaskAsync()
+        internal async Task PullTaskAsync(CancellationToken token)
         {
             var alreadyLogout = false;
             TaskPullerStarted?.Invoke(this);
@@ -89,7 +89,7 @@
                 {
                     CreatingNewPuller?.Invoke(this);
 #pragma warning disable 4014
-                    LinkedMetadata.CreateNewTaskExecutor();
+                    LinkedMetadata.CreateNewTaskExecutor(token);
 #pragma warning restore 4014
                     NewPullerCreated?.Invoke(this);
                 }
