@@ -59,8 +59,7 @@
             int maxSubscriberCount,
             Func<TaskSubscriber<T>> subscriberActivator,
             TimeSpan? executionTimeout,
-            int? maxCacheLength = null
-        )
+            int? maxCacheLength = null)
         {
             return new TaskSubscriberMetadata<T>(
                 taskExecutorTypeId,
@@ -70,7 +69,7 @@
                 maxCacheLength);
         }
 
-        internal override async Task CreateNewTaskExecutor()
+        internal override async Task CreateNewTaskExecutor(CancellationToken token)
         {
             IncrementExecutorCounter();
             try
@@ -124,7 +123,7 @@
                 {
                     // ReSharper disable once MethodSupportsCancellation
                     Task.Factory.StartNew(async () =>
-                        await CreateNewTaskExecutor().ConfigureAwait(false));
+                        await CreateNewTaskExecutor(CancellationToken.None).ConfigureAwait(false));
                 });
         }
 

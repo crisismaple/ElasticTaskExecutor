@@ -38,11 +38,11 @@ namespace ElasticTaskExecutor.Core
             }
         }
 
-        internal override async Task CreateNewTaskExecutor()
+        internal override async Task CreateNewTaskExecutor(CancellationToken token)
         {
             try
             {
-                if (await TryAllocateNewTaskExecutorIndexAsync().ConfigureAwait(false))
+                if (await TryAllocateNewTaskExecutorIndexAsync(token).ConfigureAwait(false))
                 {
 
                     TaskPuller puller = null;
@@ -58,7 +58,7 @@ namespace ElasticTaskExecutor.Core
                     }
 
                     LinkNewExecutor(puller);
-                    await puller.PullTaskAsync().ConfigureAwait(false);
+                    await puller.PullTaskAsync(token).ConfigureAwait(false);
                     puller?.Dispose();
 
                 }
@@ -109,9 +109,9 @@ namespace ElasticTaskExecutor.Core
             puller.LinkedMetadata = this;
         }
 
-        private async Task<bool> TryAllocateNewTaskExecutorIndexAsync()
+        private async Task<bool> TryAllocateNewTaskExecutorIndexAsync(CancellationToken token)
         {
-            await OperationSemaphoreSlim.WaitAsync().ConfigureAwait(false);
+            await OperationSemaphoreSlim.WaitAsync(token).ConfigureAwait(false);
             try
             {
                 var maxExecutorCnt = GetMaxExecutorCount();
