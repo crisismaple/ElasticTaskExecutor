@@ -8,8 +8,15 @@
     using Common;
     using Internal;
     using Utils;
+    
+    public interface ITaskSubscriberMetadata
+    {
+        Task StopSubscriptionAsync(CancellationToken cts);
 
-    public sealed class TaskSubscriberMetadata<T> : ExecutorMetadataBase<TaskSubscriber<T>>
+        Task ResumeSubscriptionAsync(CancellationToken cts);
+    }
+
+    public sealed class TaskSubscriberMetadata<T> : ExecutorMetadataBase<TaskSubscriber<T>>, ITaskSubscriberMetadata
     {
         private readonly SemaphoreSlim _stateChangeSemaphoreSlim = new SemaphoreSlim(1, 1);
 

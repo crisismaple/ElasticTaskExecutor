@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using ElasticTaskExecutor.Core;
@@ -8,13 +10,16 @@ namespace ElasticTaskExecutor.Extensions
     public class ElasticTaskExecutorHostedService :IHostedService
     {
         private TaskExecutionContext _executionContext;
+        private List<ITaskSubscriberMetadata> _subscribers;
         private bool _waitForExecutorTaskComplete;
 
-        public ElasticTaskExecutorHostedService(TaskExecutionContext executionContext, 
-            bool waitForExecutorTaskComplete)
+        public ElasticTaskExecutorHostedService(
+            TaskExecutionContext executionContext,
+            ElasticTaskExecutorHostServiceOptions option)
         {
             _executionContext = executionContext;
-            _waitForExecutorTaskComplete = waitForExecutorTaskComplete;
+            _waitForExecutorTaskComplete = option.WaitForExecutorTaskComplete;
+            _subscribers = option.Subscribers;
         }
 
         public async Task StartAsync(CancellationToken cancellationToken)
@@ -27,11 +32,24 @@ namespace ElasticTaskExecutor.Extensions
 
         public async Task StopAsync(CancellationToken cancellationToken)
         {
-            if (_waitForExecutorTaskComplete && _executionContext != null)
+            if (_waitForExecutorTaskComplete)
             {
-                await _executionContext.FinalizeAsync(cancellationToken).ConfigureAwait(false);
-                _executionContext.Dispose();
+                var tasks = new List<Task>();
+                if (_executionContext != null)
+                {
+                    tasks.Add(_executionContext.FinalizeAsync(cancellationToken));
+                }
+                if (_subscribers?.Any() ?? false)
+                {
+                    tasks.AddRange(_subscribers.Select(async s => await s.StopSubscriptionAsync(cancellationToken).ConfigureAwait(false)));
+                }
+                if (tasks.Any())
+                {
+                    await Task.WhenAll(tasks).ConfigureAwait(false);
+                }
+                _executionContext?.Dispose();
             }
+
         }
     }
 }
