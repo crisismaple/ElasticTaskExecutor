@@ -12,7 +12,7 @@ namespace ElasticTaskExecutor.UnitTest.Common
             string taskExecutorName)
         {
             TaskExecutorName = taskExecutorName;
-            TaskExecutorTypeId = taskExecutorTypeId;
+            TaskPullerTypeId = taskExecutorTypeId;
             Logger = logger;
         }
         
@@ -20,7 +20,7 @@ namespace ElasticTaskExecutor.UnitTest.Common
 
         public override bool IsExecutorEnabled => IsEnabled;
 
-        public override int TaskExecutorTypeId { get; }
+        protected override int TaskPullerTypeId { get; }
 
         public override TimeSpan? ExecutionTimeout => null;
 

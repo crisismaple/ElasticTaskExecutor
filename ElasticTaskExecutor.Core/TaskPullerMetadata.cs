@@ -9,6 +9,10 @@ namespace ElasticTaskExecutor.Core
 
     public abstract class TaskPullerMetadata : ExecutorMetadataBase<TaskPuller>
     {
+        protected abstract int TaskPullerTypeId { get; }
+
+        internal override int TaskExecutorTypeId => TaskPullerTypeId;
+
         internal readonly SemaphoreSlim OperationSemaphoreSlim = new SemaphoreSlim(1, 1);
 
         /// <summary>

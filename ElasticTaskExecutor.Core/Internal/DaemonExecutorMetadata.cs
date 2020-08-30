@@ -12,7 +12,7 @@
             _daemonExecutorConstructor = daemonExecutorConstructor;
             TaskExecutorName = nameof(DaemonExecutor);
         }
-        public override int TaskExecutorTypeId => Constraint.DaemonExecutorId;
+        protected override int TaskPullerTypeId => Constraint.DaemonExecutorId;
 
         public override TimeSpan? ExecutionTimeout => null;
 

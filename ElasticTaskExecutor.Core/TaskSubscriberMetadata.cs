@@ -23,7 +23,6 @@
         private volatile int _maxSubscriberCount = 0;
 
         internal TaskSubscriberMetadata(
-            int taskExecutorTypeId,
             int maxSubscriberCount,
             Func<TaskSubscriber<T>> subscriberActivator,
             TimeSpan? executionTimeout,
@@ -40,7 +39,6 @@
                 throw new ArgumentOutOfRangeException(nameof(maxCacheLength));
             }
             TaskManagerCancellationToken = new CancellationTokenSource();
-            TaskExecutorTypeId = taskExecutorTypeId;
             _subscriberActivator = subscriberActivator;
             ExecutionTimeout = executionTimeout;
             LocalCache = maxCacheLength == null
@@ -62,14 +60,12 @@
         internal AsyncAutoResetEvent InstanceCancelEvent = new AsyncAutoResetEvent();
 
         public static TaskSubscriberMetadata<T> CreateNewSubscription(
-            int taskExecutorTypeId,
             int maxSubscriberCount,
             Func<TaskSubscriber<T>> subscriberActivator,
             TimeSpan? executionTimeout,
             int? maxCacheLength = null)
         {
             return new TaskSubscriberMetadata<T>(
-                taskExecutorTypeId,
                 maxSubscriberCount,
                 subscriberActivator,
                 executionTimeout,
@@ -238,7 +234,7 @@
             }
         }
 
-        public override int TaskExecutorTypeId { get; }
+        internal override int TaskExecutorTypeId => 0;
 
         public override TimeSpan? ExecutionTimeout { get; }
 

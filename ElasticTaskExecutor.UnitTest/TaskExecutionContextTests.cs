@@ -31,7 +31,6 @@ namespace ElasticTaskExecutor.UnitTest
 
 
             var subscription = TaskSubscriberMetadata<long>.CreateNewSubscription(
-                2,
                 10,
                 () => new DummySubscriber<long>(), TimeSpan.FromMinutes(30));
 

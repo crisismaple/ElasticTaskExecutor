@@ -8,7 +8,7 @@
     {
         internal long RunningExecutorCounter = 0L;
 
-        public abstract int TaskExecutorTypeId { get; }
+        internal abstract int TaskExecutorTypeId { get; }
 
         public string TaskExecutorName { get; set; }
 

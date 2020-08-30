@@ -12,12 +12,12 @@ namespace ElasticTaskExecutor.Extensions
     {
         public static IServiceCollection AddElasticTaskExecutorServer(
             this IServiceCollection services,
-            Action<ElasticTaskExecutorHostServiceOptions> configurate)
+            Action<IServiceProvider, ElasticTaskExecutorHostServiceOptions> configurate)
         {
-            var option = new ElasticTaskExecutorHostServiceOptions();
-            configurate(option);
             return services.AddSingleton(serviceProvider =>
             {
+                var option = new ElasticTaskExecutorHostServiceOptions();
+                configurate(serviceProvider, option);
                 TaskExecutionContext context = null;
                 if (option.EnableTaskPullerContext)
                 {
@@ -29,12 +29,12 @@ namespace ElasticTaskExecutor.Extensions
 
         public static IServiceCollection AddElasticTaskExecutor(
             this IServiceCollection services,
-            Action<ElasticTaskExecutorConfigurator> configure)
+            Action<IServiceProvider, ElasticTaskExecutorConfigurator> configure)
         {
-            var config = new ElasticTaskExecutorConfigurator();
-            configure(config);
             return services.AddSingleton(
                 serviceProvider => {
+                    var config = new ElasticTaskExecutorConfigurator();
+                    configure(serviceProvider, config);
                     var context = new TaskExecutionContext(
                         serviceProvider.GetRequiredService<ILogger<TaskExecutionContext>>(),
                         config.ExecutionMonitoringInterval,
