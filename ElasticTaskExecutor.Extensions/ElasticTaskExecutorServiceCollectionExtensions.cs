@@ -1,4 +1,6 @@
 using System;
+using System.Linq;
+using System.Threading;
 using ElasticTaskExecutor.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -10,27 +12,38 @@ namespace ElasticTaskExecutor.Extensions
     {
         public static IServiceCollection AddElasticTaskExecutorServer(
             this IServiceCollection services,
-            bool waitForExecutorTaskComplete = true)
+            Action<ElasticTaskExecutorHostServiceOptions> configurate)
         {
+            var option = new ElasticTaskExecutorHostServiceOptions();
+            configurate(option);
             return services.AddSingleton(serviceProvider =>
             {
-                var context = serviceProvider.GetRequiredService<TaskExecutionContext>();
-                return (IHostedService) new ElasticTaskExecutorHostedService(context, waitForExecutorTaskComplete);
+                TaskExecutionContext context = null;
+                if (option.EnableTaskPullerContext)
+                {
+                    context = serviceProvider.GetRequiredService<TaskExecutionContext>();
+                }
+                return (IHostedService) new ElasticTaskExecutorHostedService(context, option);
             });
         }
 
         public static IServiceCollection AddElasticTaskExecutor(
             this IServiceCollection services,
-            TimeSpan executionMonitoringInterval,
-            TimeSpan exitMonitoringInterval,
-            LogLevel monitorInfoLogLevel = LogLevel.Information)
+            Action<ElasticTaskExecutorConfigurator> configure)
         {
+            var config = new ElasticTaskExecutorConfigurator();
+            configure(config);
             return services.AddSingleton(
-                serviceProvider => new TaskExecutionContext(
-                    serviceProvider.GetRequiredService<ILogger<TaskExecutionContext>>(),
-                    executionMonitoringInterval,
-                    exitMonitoringInterval,
-                    monitorInfoLogLevel));
+                serviceProvider => {
+                    var context = new TaskExecutionContext(
+                        serviceProvider.GetRequiredService<ILogger<TaskExecutionContext>>(),
+                        config.ExecutionMonitoringInterval,
+                        config.ExitMonitoringInterval,
+                        config.MonitorInfoLogLevel);
+                    config.TaskPullerMetadataCollection.ForEach(p =>
+                        context.TryRegisterNewExecutorAsync(p, CancellationToken.None).Wait());
+                    return context;
+                    });
         }
     }
 }

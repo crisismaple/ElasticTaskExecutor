@@ -10,12 +10,12 @@ namespace ElasticTaskExecutor.Extensions
 
         public static void LogExceptionInError(this ILogger logger, string methodName, Exception e)
         {
-            logger?.LogError(string.Format(ExceptionLogTemplate, methodName, e));
+            logger?.LogError(e, string.Format(ExceptionLogTemplate, methodName, e));
         }
 
         public static void LogExceptionInWarn(this ILogger logger, string methodName, Exception e)
         {
-            logger?.LogWarning(string.Format(ExceptionLogTemplate, methodName, e));
+            logger?.LogWarning(e, string.Format(ExceptionLogTemplate, methodName, e));
         }
     }
 }
