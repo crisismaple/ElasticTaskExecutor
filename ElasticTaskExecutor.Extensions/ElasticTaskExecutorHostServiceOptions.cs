@@ -9,7 +9,7 @@ namespace ElasticTaskExecutor.Extensions
 
         public bool EnableTaskPullerContext { get; set; } = true;
 
-        internal List<ITaskSubscriberMetadata> Subscribers { get; set; }
+        internal List<ITaskSubscriberMetadata> Subscribers { get; set; } = new List<ITaskSubscriberMetadata>();
 
         public void AddSubscriberMetadataMetadata<T>(TaskSubscriberMetadata<T> metadata)
         {
