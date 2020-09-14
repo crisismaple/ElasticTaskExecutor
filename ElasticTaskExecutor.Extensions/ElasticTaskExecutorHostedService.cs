@@ -24,10 +24,9 @@ namespace ElasticTaskExecutor.Extensions
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
-            if (_executionContext != null)
-            {
-                await _executionContext.StartAsync(cancellationToken).ConfigureAwait(false);
-            }
+#pragma warning disable 4014
+            _executionContext?.StartAsync(cancellationToken);
+#pragma warning restore 4014
         }
 
         public async Task StopAsync(CancellationToken cancellationToken)
@@ -37,11 +36,11 @@ namespace ElasticTaskExecutor.Extensions
                 var tasks = new List<Task>();
                 if (_executionContext != null)
                 {
-                    tasks.Add(_executionContext.FinalizeAsync(cancellationToken));
+                    tasks.Add(_executionContext.FinalizeAsync(default));
                 }
                 if (_subscribers?.Any() ?? false)
                 {
-                    tasks.AddRange(_subscribers.Select(async s => await s.StopSubscriptionAsync(cancellationToken).ConfigureAwait(false)));
+                    tasks.AddRange(_subscribers.Select(async s => await s.StopSubscriptionAsync(default).ConfigureAwait(false)));
                 }
                 if (tasks.Any())
                 {
@@ -49,7 +48,6 @@ namespace ElasticTaskExecutor.Extensions
                 }
                 _executionContext?.Dispose();
             }
-
         }
     }
 }
